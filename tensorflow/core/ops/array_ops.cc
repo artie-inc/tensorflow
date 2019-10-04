@@ -13,6 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include <iostream>
+
 #include "tensorflow/core/framework/common_shape_fns.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
@@ -695,6 +697,7 @@ REGISTER_OP("SplitV")
     });
 
 // --------------------------------------------------------------------------
+
 REGISTER_OP("Const")
     .Output("output: dtype")
     .Attr("value: tensor")

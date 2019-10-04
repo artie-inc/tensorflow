@@ -21,7 +21,7 @@ namespace tensorflow {
 using shape_inference::DimensionHandle;
 using shape_inference::InferenceContext;
 using shape_inference::ShapeHandle;
-
+/*
 REGISTER_OP("LSTMBlockCell")
     .Input("x: T")
     .Input("cs_prev: T")
@@ -104,7 +104,8 @@ ci: The cell input.
 co: The cell after the tanh.
 h: The output h vector.
 )doc");
-
+*/
+/*
 REGISTER_OP("LSTMBlockCellGrad")
     .Input("x: T")
     .Input("cs_prev: T")
@@ -175,7 +176,7 @@ wci_grad: The gradient for wci to be back-propped.
 wcf_grad: The gradient for wcf to be back-propped.
 wco_grad: The gradient for wco to be back-propped.
 )doc");
-
+*/
 REGISTER_OP("BlockLSTM")
     .Input("seq_len_max: int64")
     .Input("x: T")
@@ -206,7 +207,7 @@ REGISTER_OP("BlockLSTM")
       DimensionHandle batch_size = c->Dim(x, 1);
       DimensionHandle cell_size;
       TF_RETURN_IF_ERROR(
-          c->Divide(c->Dim(b, 0), 4, true /* evenly_divisible */, &cell_size));
+          c->Divide(c->Dim(b, 0), 4, true , &cell_size));
 
       DCHECK_EQ(7, c->num_outputs());
       ShapeHandle output = c->MakeShape({timelen, batch_size, cell_size});
@@ -259,7 +260,7 @@ ci: The cell input over the whole time sequence.
 co: The cell after the tanh over the whole time sequence.
 h: The output h vector over the whole time sequence.
 )doc");
-
+/*
 REGISTER_OP("BlockLSTMGrad")
     .Input("seq_len_max: int64")
     .Input("x: T")
@@ -347,5 +348,5 @@ wcf_grad: The gradient for wcf to be back-propped.
 wco_grad: The gradient for wco to be back-propped.
 b_grad: The gradient for w to be back-propped.
 )doc");
-
+*/
 }  // end namespace tensorflow

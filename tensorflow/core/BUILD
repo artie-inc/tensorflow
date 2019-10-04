@@ -2855,6 +2855,7 @@ tf_cuda_library(
             "graph/tensor_id.cc",
             "graph/while_context.h",
             "graph/while_context.cc",
+            "framework/backward.hpp",
         ],
         exclude = [
             "**/*test*",

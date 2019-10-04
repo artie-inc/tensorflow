@@ -18,6 +18,7 @@ limitations under the License.
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <iostream>
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/gtl/map_util.h"
@@ -75,6 +76,7 @@ Status OpRegistry::LookUp(const string& op_type_name,
 
 Status OpRegistry::LookUpSlow(const string& op_type_name,
                               const OpRegistrationData** op_reg_data) const {
+  std::cout <<  "LookUpSlow start!!\n";
   *op_reg_data = nullptr;
   const OpRegistrationData* res = nullptr;
 
@@ -92,9 +94,12 @@ Status OpRegistry::LookUpSlow(const string& op_type_name,
     }
     // Note: Can't hold mu_ while calling Export() below.
   }
+  std::cout << "LookUpSlow first_call? " << op_type_name;
   if (first_call) {
+    std::cout << " true";
     TF_QCHECK_OK(ValidateKernelRegistrations(*this));
   }
+  std::cout << "\n";
   if (res == nullptr) {
     if (first_unregistered) {
       OpList op_list;

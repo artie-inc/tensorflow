@@ -16,6 +16,7 @@ limitations under the License.
 #include "tensorflow/compiler/jit/xla_device.h"
 
 #include <stdlib.h>
+#include <iostream>
 
 #include <unordered_set>
 
@@ -538,6 +539,7 @@ XlaDeviceOpRegistrations* RegisterXlaDeviceKernels(const char* device,
            /*include_compilation_only_kernels=*/false)) {
     KernelDef* def = new KernelDef(*jit_def);
     def->set_device_type(device);
+    std::cout << "RegisterXlaDeviceKernels\n";
     registrations->op_kernel_registrars.emplace_back(
         new kernel_factory::OpKernelRegistrar(def, "XlaCompileOnDemandOp",
                                               factory));

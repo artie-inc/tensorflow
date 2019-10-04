@@ -17,6 +17,7 @@ limitations under the License.
 
 #include <functional>
 #include <memory>
+#include <iostream>
 
 #include "tensorflow/compiler/jit/flags.h"
 #include "tensorflow/compiler/jit/xla_cluster_util.h"
@@ -318,6 +319,7 @@ void XlaOpRegistry::RegisterCompilationKernels() {
         }
         VLOG(2) << "XLA op registration: device: " << backend.first
                 << " op: " << op_name;
+        std::cout << "XlaOpRegistry::RegisterCompilationKernels\n";
         registry.kernel_registrars_.emplace_back(
             new kernel_factory::OpKernelRegistrar(
                 new KernelDef(*kdef), "XlaJitOp", op_registration->factory));

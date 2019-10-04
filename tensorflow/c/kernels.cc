@@ -112,7 +112,7 @@ class KernelBuilderFactory
 void TF_RegisterKernelBuilder(const char* name, TF_KernelBuilder* builder,
                               TF_Status* status) {
   using tensorflow::register_kernel::Name;
-
+  std::cout << "TF_RegisterKernelBuilder\n";
   tensorflow::kernel_factory::OpKernelRegistrar(
       builder->cc_builder->Build(), name,
       absl::make_unique<tensorflow::KernelBuilderFactory>(builder));

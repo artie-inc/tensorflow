@@ -20,6 +20,7 @@ limitations under the License.
 #include <functional>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "tensorflow/core/framework/allocator.h"
 #include "tensorflow/core/framework/cancellation.h"
@@ -1496,6 +1497,7 @@ class OpKernelRegistrar {
     // Perform the check in the header to allow compile-time optimization
     // to a no-op, allowing the linker to remove the kernel symbols.
     if (kernel_def != nullptr) {
+      std::cout << "OpKernelRegistrar constructor 1 calling InitInternal...";
       InitInternal(kernel_def, kernel_class_name, std::move(factory));
     }
   }
@@ -1507,6 +1509,7 @@ class OpKernelRegistrar {
     // Perform the check in the header to allow compile-time optimization
     // to a no-op, allowing the linker to remove the kernel symbols.
     if (kernel_def != nullptr) {
+      std::cout << "OpKernelRegistrar constructor 2 calling InitInternal...";
       InitInternal(kernel_def, kernel_class_name,
                    absl::make_unique<PtrOpKernelFactory>(create_fn));
     }

@@ -16,6 +16,7 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/eager/execute.h"
 
 #include <vector>
+#include <iostream>
 
 // clang-format off
 // Required for IS_MOBILE_PLATFORM
@@ -211,6 +212,7 @@ Status ValidateInputTypeAndPlacement(EagerContext* ctx,
 
 Status SelectDevice(const NodeDef& ndef, EagerContext* ctx, Device** device) {
   PrioritizedDeviceTypeVector final_devices;
+  std::cout << "SelectDevice "  << device.name() << "\n";
   TF_RETURN_IF_ERROR(SupportedDeviceTypesForNode(
       ctx->prioritized_device_type_list(), ndef, &final_devices));
   if (final_devices.empty()) {

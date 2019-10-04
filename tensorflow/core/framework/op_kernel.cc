@@ -21,6 +21,12 @@ limitations under the License.
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <iostream>
+#include <execinfo.h>
+#include <dlfcn.h>     // for dladdr
+#include <cxxabi.h>    // for __cxa_demangle
+#include <string>
+#include <sstream>
 
 #include "tensorflow/core/framework/attr_value_util.h"
 #include "tensorflow/core/framework/device_attributes.pb.h"
@@ -48,6 +54,7 @@ limitations under the License.
 #include "tensorflow/core/platform/platform_strings.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/util/ptr_util.h"
+#include "backward.hpp"
 
 namespace tensorflow {
 
@@ -1116,6 +1123,11 @@ void OpKernelRegistrar::InitInternal(const KernelDef* kernel_def,
     // before some file libraries can initialize, which in turn crashes the
     // program flakily. Until we get rid of static initializers in kernel
     // registration mechanism, we have this workaround here.
+    std::cout << "InitInternal data=" << kernel_class_name.data() << " priority=" << kernel_def->priority() << " label='" << kernel_def->label() << "' " 
+        << "device_type=" << kernel_def->device_type() << " "
+        << "op=" << kernel_def->op()
+        // << kernel_def->name()
+        << "\n";
     auto global_registry =
         reinterpret_cast<KernelRegistry*>(GlobalKernelRegistry());
     mutex_lock l(global_registry->mu);
@@ -1153,13 +1165,40 @@ Status FindKernelRegistration(
   auto typed_registry = GlobalKernelRegistryTyped();
   tf_shared_lock lock(typed_registry->mu);
   auto regs = typed_registry->registry.equal_range(key);
+  
+  std::cout << "FindKernelRegistration iterating regs\n";
   for (auto iter = regs.first; iter != regs.second; ++iter) {
+
+
+    // std::cout << "FindKernelRegistration: '" <<
+    //         FormatNodeDefForError(node_name, has_experimental_debug_info, experimental_debug_info) <<
+    //         "': '" <<  ProtoShortDebugString((*reg)->def) <<  "' and '" <<
+    //         ProtoShortDebugString(iter->second.def) << "'";
+
     // If there is a kernel registered for the op and device_type,
     // check that the attrs match.
     bool match;
+    std::cout << "If Kernel registered check attrs match\n";
     TF_RETURN_IF_ERROR(KernelAttrsMatch(iter->second.def, node_attrs, &match));
+    std::cout << "check attrs complete\n";
+    std::cout << "FindKernelRegistration" << FormatNodeDefForError(node_name, has_experimental_debug_info, experimental_debug_info) ;
+    //<< "': '" <<  ProtoShortDebugString((*reg)->def)
+    if (*reg != nullptr) {
+      std::cout << "': '" <<  ProtoShortDebugString((*reg)->def);
+    }
+    std::cout << "\n";
+
     if (match) {
       if (*reg != nullptr) {
+        std::cout << "DUPLICATE\n";
+        // std::cout << Backtrace(1);
+        backward::StackTrace st;
+        st.load_here(32);
+        backward::Printer p;
+        p.print(st);
+
+        // return Status::OK();
+        
         return errors::InvalidArgument(
             "Multiple OpKernel registrations match NodeDef '",
             FormatNodeDefForError(node_name, has_experimental_debug_info,
@@ -1169,6 +1208,7 @@ Status FindKernelRegistration(
       }
       *reg = &iter->second;
     } else {
+      std::cout << "FindKernelRegistration() attribute mismatch";
       *was_attr_mismatch = true;
     }
   }
@@ -1179,6 +1219,7 @@ Status FindKernelRegistration(const DeviceType& device_type,
                               const NodeDef& node_def,
                               const KernelRegistration** reg,
                               bool* was_attr_mismatch) {
+  std::cout << "Stub FindKernelRegistration()\n";
   return FindKernelRegistration(
       device_type, node_def.name(), node_def.has_experimental_debug_info(),
       node_def.experimental_debug_info(), node_def.op(),
@@ -1191,6 +1232,7 @@ bool KernelDefAvailable(const DeviceType& device_type,
                         const NodeDef& node_def) {
   const KernelRegistration* reg = nullptr;
   bool was_attr_mismatch;
+  std::cout << "KernelDefAvailable()\n";
   Status result =
       FindKernelRegistration(device_type, node_def, &reg, &was_attr_mismatch);
   return result.ok() && reg != nullptr;
@@ -1205,9 +1247,11 @@ Status FindKernelDef(
     const KernelDef** def, string* kernel_class_name) {
   const KernelRegistration* reg = nullptr;
   bool was_attr_mismatch;
+  std::cout << "FindKernelDef\n";
   TF_RETURN_IF_ERROR(FindKernelRegistration(
       device_type, node_name, has_experimental_debug_info,
       experimental_debug_info, node_op, node_attrs, &reg, &was_attr_mismatch));
+  std::cout << "FindKernelDef done\n";      
   if (reg == nullptr) {
     Status s = errors::NotFound(
         "No registered '", node_op, "' OpKernel for ",
@@ -1250,8 +1294,10 @@ Status SupportedDeviceTypesForNode(
     for (const DeviceType& device_type : prioritized_types) {
       const KernelRegistration* reg = nullptr;
       bool was_attr_mismatch;
+      std::cout << "SupportedDeviceTypesForNode()\n";
       TF_RETURN_IF_ERROR(
           FindKernelRegistration(device_type, def, &reg, &was_attr_mismatch));
+      std::cout << "SupportedDeviceTypesForNode call to findkernelreg Done\n";
       if (reg != nullptr) {
         int32 priority = reg->def.priority();
         prioritized_device_types->emplace_back(device_type, priority);
@@ -1336,6 +1382,8 @@ Status CreateOpKernel(DeviceType device_type, DeviceBase* device,
                       const NodeDef& node_def, int graph_def_version,
                       OpKernel** kernel) {
   VLOG(1) << "Instantiating kernel for node: " << SummarizeNodeDef(node_def);
+  std::cout << "CreateOpKernel() instantiating kernel for node: "  << SummarizeNodeDef(node_def) << "\n";
+
 
   // Look up the Op registered for this op name.
   const OpDef* op_def = nullptr;
@@ -1349,8 +1397,10 @@ Status CreateOpKernel(DeviceType device_type, DeviceBase* device,
   // Look up kernel registration.
   const KernelRegistration* registration;
   bool was_attr_mismatch;
+  std::cout << "CreateOpKernel() findingKernelRegistration...\n";
   s = FindKernelRegistration(device_type, node_def, &registration,
                              &was_attr_mismatch);
+  std::cout << "CreateOpKernel() findingKernelRegistration...DONE!\n";                             
   if (!s.ok()) {
     errors::AppendToMessage(&s, " when instantiating ", node_def.op());
     return s;
@@ -1509,5 +1559,41 @@ void CheckNotInComputeAsync(OpKernelContext* ctx,
   CHECK_EQ(nullptr, ctx->op_kernel().AsAsync())
       << "Use " << correct_macro_name << " in AsyncOpKernel implementations.";
 }
+
+
+// std::string Backtrace(int skip = 1)
+// {
+// 	void *callstack[128];
+// 	const int nMaxFrames = sizeof(callstack) / sizeof(callstack[0]);
+// 	char buf[1024];
+// 	int nFrames = backtrace(callstack, nMaxFrames);
+// 	char **symbols = backtrace_symbols(callstack, nFrames);
+
+// 	std::ostringstream trace_buf;
+// 	for (int i = skip; i < nFrames; i++) {
+// 		Dl_info info;
+// 		if (dladdr(callstack[i], &info)) {
+// 			char *demangled = NULL;
+// 			int status;
+// 			demangled = abi::__cxa_demangle(info.dli_sname, NULL, 0, &status);
+// 			snprintf(buf, sizeof(buf), "%-3d %*p %s + %zd\n",
+// 					 i, 2 + sizeof(void*) * 2, callstack[i],
+// 					 status == 0 ? demangled : info.dli_sname,
+// 					 (char *)callstack[i] - (char *)info.dli_saddr);
+// 			free(demangled);
+// 		} else {
+// 			snprintf(buf, sizeof(buf), "%-3d %*0p\n",
+// 					 i, 2 + sizeof(void*) * 2, callstack[i]);
+// 		}
+// 		trace_buf << buf;
+
+// 		snprintf(buf, sizeof(buf), "%s\n", symbols[i]);
+// 		trace_buf << buf;
+// 	}
+// 	free(symbols);
+// 	if (nFrames == nMaxFrames)
+// 		trace_buf << "[truncated]\n";
+// 	return trace_buf.str();
+// }
 
 }  // namespace tensorflow

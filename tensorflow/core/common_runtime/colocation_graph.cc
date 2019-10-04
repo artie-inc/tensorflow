@@ -21,6 +21,7 @@ limitations under the License.
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "absl/strings/str_join.h"
 #include "tensorflow/core/common_runtime/device.h"
@@ -184,6 +185,7 @@ Status Member::SetParentAndSupportedDevices(
                             node.DebugString());
   }
   parent_ = id;
+  std::cout << "SetParentAndSupportedDevices";
   return SupportedDeviceTypesForNode(types, node.def(),
                                      &supported_device_types_);
 }
