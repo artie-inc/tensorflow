@@ -16,6 +16,10 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/session_factory.h"
 
 #include <unordered_map>
+#include <iostream>
+#include <chrono>
+#include <thread>
+#include <ctime>   
 
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/strings/str_util.h"
@@ -43,6 +47,7 @@ SessionFactories* session_factories() {
 
 void SessionFactory::Register(const string& runtime_type,
                               SessionFactory* factory) {
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " SessionFactory::Register() start " << runtime_type << " " << std::endl;
   mutex_lock l(*get_session_factory_lock());
   if (!session_factories()->insert({runtime_type, factory}).second) {
     LOG(ERROR) << "Two session factories are being registered "

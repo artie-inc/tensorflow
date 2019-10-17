@@ -18,6 +18,10 @@ limitations under the License.
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <iostream>
+#include <chrono>
+#include <thread>
+#include <ctime>   
 
 #include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/mutex.h"
@@ -73,12 +77,14 @@ SessionOptions ClientSession::Impl::MakeDefaultSessionOptions(
 
 Status ClientSession::Run(const std::vector<Output>& fetch_outputs,
                           std::vector<Tensor>* outputs) const {
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " ClientSession::Run() helper1 start" << std::endl;
   return Run(FeedType{}, fetch_outputs, {}, outputs);
 }
 
 Status ClientSession::Run(const FeedType& inputs,
                           const std::vector<Output>& fetch_outputs,
                           std::vector<Tensor>* outputs) const {
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " ClientSession::Run() helper2 start" << std::endl;
   return Run(inputs, fetch_outputs, {}, outputs);
 }
 
@@ -86,6 +92,7 @@ Status ClientSession::Run(const FeedType& inputs,
                           const std::vector<Output>& fetch_outputs,
                           const std::vector<Operation>& run_outputs,
                           std::vector<Tensor>* outputs) const {
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " ClientSession::Run() helper3 start" << std::endl;
   return Run(RunOptions(), inputs, fetch_outputs, run_outputs, outputs,
              nullptr);
 }
@@ -107,6 +114,9 @@ Status ClientSession::Run(const RunOptions& run_options, const FeedType& inputs,
                           const std::vector<Operation>& run_outputs,
                           std::vector<Tensor>* outputs,
                           RunMetadata* run_metadata) const {
+  
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " ClientSession::Run() start" << std::endl;
+  
   std::vector<std::pair<string, Tensor>> feeds;
   for (auto const& feed : inputs) {
     TF_RETURN_IF_ERROR(feed.second.status);
@@ -123,6 +133,9 @@ Status ClientSession::Run(const RunOptions& run_options, const FeedType& inputs,
     target_node_names.push_back(output.node()->name());
   }
   TF_RETURN_IF_ERROR(impl()->MaybeExtendGraph());
+
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " ClientSession::Run() impl()->session_->Run()" << std::endl;
+
   return impl()->session_->Run(run_options, feeds, output_tensor_names,
                                target_node_names, outputs, run_metadata);
 }

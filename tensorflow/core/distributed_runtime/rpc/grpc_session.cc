@@ -16,6 +16,7 @@ limitations under the License.
 #include "tensorflow/core/distributed_runtime/rpc/grpc_session.h"
 
 #include <unordered_map>
+#include <iostream>
 
 #include "tensorflow/core/common_runtime/session_factory.h"
 #include "tensorflow/core/distributed_runtime/call_options.h"
@@ -272,6 +273,7 @@ Status GrpcSession::Run(const RunOptions& run_options,
                         const std::vector<string>& target_node_names,
                         std::vector<Tensor>* outputs,
                         RunMetadata* run_metadata) {
+  std::cout << "GrpcSession::Run() calls RunHelper()" << std::endl;
   return RunHelper(run_options, inputs, output_tensor_names, target_node_names,
                    outputs, run_metadata, /* prun_handle */ "");
 }
@@ -280,6 +282,7 @@ Status GrpcSession::Run(const std::vector<std::pair<string, Tensor>>& inputs,
                         const std::vector<string>& output_tensor_names,
                         const std::vector<string>& target_node_names,
                         std::vector<Tensor>* outputs) {
+  std::cout << "GrpcSession::Run() calls Run()" << std::endl;
   RunOptions run_options;
   run_options.set_timeout_in_ms(options_.config.operation_timeout_in_ms());
   return Run(run_options, inputs, output_tensor_names, target_node_names,

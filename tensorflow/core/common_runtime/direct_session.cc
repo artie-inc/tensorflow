@@ -18,6 +18,10 @@ limitations under the License.
 #include <atomic>
 #include <string>
 #include <vector>
+#include <iostream>
+#include <chrono>
+#include <thread>
+#include <ctime>   
 
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
@@ -405,6 +409,7 @@ Status DirectSession::Run(const NamedTensorList& inputs,
                           const std::vector<string>& target_nodes,
                           std::vector<Tensor>* outputs) {
   RunMetadata run_metadata;
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::Run() helper start " << std::endl;
   return Run(RunOptions(), inputs, output_names, target_nodes, outputs,
              &run_metadata);
 }
@@ -443,6 +448,9 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
                                   CallFrameInterface* call_frame,
                                   ExecutorsAndKeys* executors_and_keys,
                                   RunMetadata* run_metadata) {
+  
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::RunInternal() start " << std::endl;
+  
   const uint64 start_time_usecs = options_.env->NowMicros();
   profiler::TraceMe activity(
       [&] { return strings::StrCat("SessionRun #id=", step_id, "#"); },
@@ -705,6 +713,9 @@ Status DirectSession::Run(const RunOptions& run_options,
                           const std::vector<string>& target_nodes,
                           std::vector<Tensor>* outputs,
                           RunMetadata* run_metadata) {
+
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::Run() start " << std::endl;
+
   TF_RETURN_IF_ERROR(CheckNotClosed());
   TF_RETURN_IF_ERROR(CheckGraphCreated("Run()"));
   direct_session_runs->GetCell()->IncrementBy(1);
@@ -720,6 +731,7 @@ Status DirectSession::Run(const RunOptions& run_options,
   metrics::RecordGraphInputTensors(input_size);
 
   // Check if we already have an executor for these arguments.
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::Run() check if we have enough executors " << std::endl;
   ExecutorsAndKeys* executors_and_keys;
   RunStateArgs run_state_args(run_options.debug_options());
   run_state_args.collective_graph_key =
@@ -735,6 +747,7 @@ Status DirectSession::Run(const RunOptions& run_options,
 
   // Configure a call frame for the step, which we use to feed and
   // fetch values to and from the executors.
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::Run() call frame configure" << std::endl;
   FunctionCallFrame call_frame(executors_and_keys->input_types,
                                executors_and_keys->output_types);
   gtl::InlinedVector<Tensor, 4> feed_args(inputs.size());
@@ -756,15 +769,18 @@ Status DirectSession::Run(const RunOptions& run_options,
     return s;
   }
 
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::Run() fetch_add() " << std::endl;
   const int64 step_id = step_id_counter_.fetch_add(1);
 
   if (LogMemory::IsEnabled()) {
     LogMemory::RecordStep(step_id, run_state_args.handle);
   }
-
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::Run() RunInternal() " << std::endl;
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
                                  executors_and_keys, run_metadata));
 
+
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::Run() check for outputs " << std::endl;
   // Receive outputs.
   if (outputs) {
     std::vector<Tensor> sorted_outputs;
@@ -807,6 +823,8 @@ Status DirectSession::Run(const RunOptions& run_options,
     }
     metrics::RecordGraphOutputTensors(output_size);
   }
+
+  std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " DirectSession::Run() returning OK " << std::endl;
 
   return Status::OK();
 }

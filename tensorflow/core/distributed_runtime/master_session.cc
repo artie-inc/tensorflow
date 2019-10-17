@@ -19,6 +19,7 @@ limitations under the License.
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <iostream>
 
 #include "tensorflow/core/common_runtime/process_util.h"
 #include "tensorflow/core/common_runtime/profile_handler.h"
@@ -1578,6 +1579,7 @@ Status MasterSession::PartialRunSetup(const PartialRunSetupRequest* req,
 
 Status MasterSession::Run(CallOptions* opts, const RunStepRequestWrapper& req,
                           MutableRunStepResponseWrapper* resp) {
+  std::cout << "MasterSession::Run() 1" << std::endl;
   UpdateLastAccessTime();
   {
     mutex_lock l(mu_);

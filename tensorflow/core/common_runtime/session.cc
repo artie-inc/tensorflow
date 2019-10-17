@@ -16,6 +16,7 @@ limitations under the License.
 #include "tensorflow/core/public/session.h"
 
 #include <string>
+#include <iostream>
 
 #include "tensorflow/core/common_runtime/session_factory.h"
 #include "tensorflow/core/lib/core/errors.h"
@@ -33,6 +34,7 @@ Status Session::Run(const RunOptions& run_options,
                     const std::vector<string>& output_tensor_names,
                     const std::vector<string>& target_node_names,
                     std::vector<Tensor>* outputs, RunMetadata* run_metadata) {
+  std::cout << "Session::Run() (run with options not supported for this session)";
   return errors::Unimplemented(
       "Run with options is not supported for this session.");
 }

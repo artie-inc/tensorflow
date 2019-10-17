@@ -20,6 +20,9 @@ limitations under the License.
 #include <atomic>              // NOLINT
 #include <chrono>              // NOLINT
 #include <condition_variable>  // NOLINT
+#include <iostream>
+#include <thread>
+#include <ctime>   
 
 #include "tensorflow/core/platform/mutex.h"
 #include "tensorflow/core/platform/types.h"
@@ -47,13 +50,22 @@ class Notification {
     return notified_.load(std::memory_order_acquire);
   }
 
+  void doStuff() {
+    std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;;
+  }
+
   void WaitForNotification() {
+    std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " Notification::WaitForNotification() start  hasBeenNotified=" << HasBeenNotified() << std::endl;
     if (!HasBeenNotified()) {
+      std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " Notification::WaitForNotification() !hasNeenNotified() "  << std::endl;
       mutex_lock l(mu_);
+      std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " Notification::WaitForNotification() !hasNeenNotified() after mutex_lock l"  << std::endl;
       while (!HasBeenNotified()) {
+        std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " Notification::WaitForNotification() while !HasBeenNotified()....wait()" << std::endl;
         cv_.wait(l);
-      }
+      }      
     }
+    std::cout << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << " " << std::this_thread::get_id() << " Notification::WaitForNotification() END  hasBeenNotified=" << HasBeenNotified()  << std::endl;
   }
 
  private:
