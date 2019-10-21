@@ -17,6 +17,11 @@ limitations under the License.
 
 #include <cmath>
 #include <vector>
+#include <thread>
+#include <time.h>
+#include <sys/time.h>
+#include <iostream>
+#include <fstream>
 
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/type_traits.h"
@@ -55,6 +60,24 @@ void DeepCopy(const Tensor& input, Tensor* output) {
   }
 }
 
+uint64_t timeSinceEpochMillisec() {
+  using namespace std::chrono;
+  return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+
+
+// double get_wall_time(){
+//     struct timeval time;
+//     if (gettimeofday(&time,NULL)){
+//         //  Handle error
+//         return 0;
+//     }
+//     return (double)time.tv_sec + (double)time.tv_usec * .000001;
+// }
+// double get_cpu_time(){
+//     return (double)clock() / CLOCKS_PER_SEC;
+// }
+
 Status Concat(const gtl::ArraySlice<Tensor>& tensors, Tensor* result) {
   if (tensors.empty()) {
     return errors::InvalidArgument("Cannot concatenate zero tensors");
@@ -78,23 +101,70 @@ Status Concat(const gtl::ArraySlice<Tensor>& tensors, Tensor* result) {
     }
   }
   *result = Tensor(dtype, shape);
-
+  std::cout << timeSinceEpochMillisec() << " " <<std::this_thread::get_id() << " Concat() StringPiece" << std::endl;
   // We use StringPiece as a convenient map over the tensor buffer,
   // but we cast the type to get to the underlying buffer to do the
   // copy.
   StringPiece to_data = result->tensor_data();
 
   if (DataTypeCanUseMemcpy(dtype)) {
+    std::cout << timeSinceEpochMillisec() << " " <<std::this_thread::get_id() << " Concat() DataTypeCanUseMemcpy" << std::endl;
+
+    std::cout << timeSinceEpochMillisec() << " " <<std::this_thread::get_id() << " Concat() shape: ";
+    for(int j=0; j < tensors[0].dims(); j++) {
+      TensorShape ts = tensors[0].shape();
+      std::cout << ts.dim_size(j) << " ";
+    }
+    std::cout << std::endl;
+
+
+    double elapsed_time_ms_concat_total = 0;
+    int cumulative_from_data = 0;
+    
+    std::ofstream memcpy_log;
+    memcpy_log.open ("memcpy.csv", std::fstream::out | std::fstream::app);
+
     int64 offset = 0;
     for (const Tensor& tensor : tensors) {
+
+
       StringPiece from_data = tensor.tensor_data();
       CHECK_LE(offset + from_data.size(), to_data.size());
+      //std::cout << timeSinceEpochMillisec() << " " <<std::this_thread::get_id() << " Concat() memcpy" << tensor.dims() << std::endl;
+
+      //auto t_start = std::chrono::high_resolution_clock::now();
+      auto t_start = std::chrono::steady_clock::now();
+      double cputimestart = (double)clock() / CLOCKS_PER_SEC;
+
       memcpy(const_cast<char*>(to_data.data()) + offset, from_data.data(),
              from_data.size());
 
+      //auto t_end = std::chrono::high_resolution_clock::now();
+      auto t_end = std::chrono::steady_clock::now();
+      double cputimeend = (double)clock() / CLOCKS_PER_SEC;
+
+      double elapsed_time_ms_memcpy = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+      double cputime = cputimeend - cputimestart;
+      cumulative_from_data += from_data.size();      
+
+      // std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " Concat() memcpy finished offset=" << offset << " size=" <<  from_data.size()  << " time=" << elapsed_time_ms_memcpy 
+      //     << " cputime=" << cputime 
+      //     << " cumul=" << cumulative_from_data
+      //     << std::endl;
+
+
+      memcpy_log << std::fixed << timeSinceEpochMillisec() << "," << std::this_thread::get_id() << "," << offset << "," 
+          <<  from_data.size() << "," 
+          << elapsed_time_ms_memcpy << "," 
+          << cputime << "," 
+          << cumulative_from_data
+          << std::endl;
+
       offset += from_data.size();
     }
+    memcpy_log.close();
   } else {
+    std::cout << timeSinceEpochMillisec() << " " <<std::this_thread::get_id() << " Concat() NonUseMemcpy" << std::endl;
     if (dtype != DT_STRING) {
       return errors::Internal("Unexpected data type");
     }

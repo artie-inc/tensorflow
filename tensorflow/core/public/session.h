@@ -173,6 +173,22 @@ class Session {
                      const std::vector<string>& target_node_names,
                      std::vector<Tensor>* outputs, RunMetadata* run_metadata);
 
+
+
+   virtual Status Run(const RunOptions& run_options,
+                     const std::vector<std::pair<string, Tensor> >& inputs,
+                     const std::vector<string>& output_tensor_names,
+                     const std::vector<string>& target_node_names,
+                     std::vector<Tensor>* outputs, RunMetadata* run_metadata,
+                     bool doProfile) {return Status::OK();}
+
+   virtual Status Run(const std::vector<std::pair<string, Tensor> >& inputs,
+                     const std::vector<string>& output_tensor_names,
+                     const std::vector<string>& target_node_names,
+                     std::vector<Tensor>* outputs,
+                     bool doProfile) {return Status::OK();} //=0;
+
+
   /// \brief Sets up a graph for partial execution. All future feeds and
   /// fetches are specified by `input_names` and `output_names`. Returns
   /// `handle` that can be used to perform a sequence of partial feeds and

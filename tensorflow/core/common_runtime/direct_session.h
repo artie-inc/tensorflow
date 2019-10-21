@@ -84,6 +84,21 @@ class DirectSession : public Session {
                            std::vector<Tensor>* outputs,
                            RunMetadata* run_metadata) override;
 
+
+   ::tensorflow::Status Run(const ::tensorflow::RunOptions& run_options,
+                           const NamedTensorList& inputs,
+                           const std::vector<string>& output_names,
+                           const std::vector<string>& target_nodes,
+                           std::vector<Tensor>* outputs,
+                           RunMetadata* run_metadata,
+                           bool doProfile) override;
+
+   ::tensorflow::Status Run(const NamedTensorList& inputs,
+                           const std::vector<string>& output_names,
+                           const std::vector<string>& target_nodes,
+                           std::vector<Tensor>* outputs,
+                           bool doProfile) override;
+
   // NOTE: PRunSetup and PRun are added to support partial execution. This
   // feature is experimental and subject to change.
   ::tensorflow::Status PRunSetup(const std::vector<string>& input_names,
@@ -247,11 +262,19 @@ class DirectSession : public Session {
       RunStateArgs* run_state_args, DataTypeVector* input_types,
       DataTypeVector* output_types, int64* collective_graph_key);
 
-  ::tensorflow::Status RunInternal(
-      int64 step_id, const RunOptions& run_options,
-      CallFrameInterface* call_frame, ExecutorsAndKeys* executors_and_keys,
-      RunMetadata* run_metadata,
-      const thread::ThreadPoolOptions& threadpool_options);
+  ::tensorflow::Status RunInternal(int64 step_id, const RunOptions& run_options,
+                                   CallFrameInterface* call_frame,
+                                   ExecutorsAndKeys* executors_and_keys,
+                                   RunMetadata* run_metadata, 
+                                   const thread::ThreadPoolOptions& threadpool_options,
+                                   bool doProfile);
+
+  ::tensorflow::Status RunInternal(int64 step_id, const RunOptions& run_options,
+                                   CallFrameInterface* call_frame,
+                                   ExecutorsAndKeys* executors_and_keys,
+                                   RunMetadata* run_metadata,
+                                   const thread::ThreadPoolOptions& threadpool_options);
+                                   
 
   // Returns whether inter-op execution uses a global pool or the input
   // `run_options` requests being run on inter_op_thread_pool = 0 in case
