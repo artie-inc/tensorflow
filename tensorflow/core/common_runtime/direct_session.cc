@@ -18,6 +18,9 @@ limitations under the License.
 #include <atomic>
 #include <string>
 #include <vector>
+#include <thread>
+#include <chrono>
+#include <ctime>   
 
 #include "tensorflow/core/common_runtime/collective_executor_mgr.h"
 #include "tensorflow/core/common_runtime/collective_param_resolver_local.h"
@@ -409,6 +412,16 @@ Status DirectSession::Run(const NamedTensorList& inputs,
              &run_metadata);
 }
 
+Status DirectSession::Run(const NamedTensorList& inputs,
+                          const std::vector<string>& output_names,
+                          const std::vector<string>& target_nodes,
+                          std::vector<Tensor>* outputs,
+                          bool doProfile) {
+  RunMetadata run_metadata;
+  return Run(RunOptions(), inputs, output_names, target_nodes, outputs,
+             &run_metadata, doProfile);
+}
+
 Status DirectSession::CreateDebuggerState(
     const CallableOptions& callable_options, int64 global_step,
     int64 session_run_index, int64 executor_step_index,
@@ -699,14 +712,37 @@ Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
   return Status::OK();
 }
 
+uint64_t timeSinceEpochMillisec() {
+  using namespace std::chrono;
+  return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+
 Status DirectSession::Run(const RunOptions& run_options,
                           const NamedTensorList& inputs,
                           const std::vector<string>& output_names,
                           const std::vector<string>& target_nodes,
                           std::vector<Tensor>* outputs,
                           RunMetadata* run_metadata) {
+    return Run(run_options, inputs, output_names, target_nodes, outputs, run_metadata, false);
+}
+
+
+Status DirectSession::Run(const RunOptions& run_options,
+                          const NamedTensorList& inputs,
+                          const std::vector<string>& output_names,
+                          const std::vector<string>& target_nodes,
+                          std::vector<Tensor>* outputs,
+                          RunMetadata* run_metadata
+                          ,bool doProfile
+                          ) {
   TF_RETURN_IF_ERROR(CheckNotClosed());
   TF_RETURN_IF_ERROR(CheckGraphCreated("Run()"));
+
+  auto t_start = std::chrono::high_resolution_clock::now();
+
+  // bool doProfile = true;
+  // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() start" << std::endl;
+
   direct_session_runs->GetCell()->IncrementBy(1);
 
   // Extract the inputs names for this run of the session.
@@ -733,10 +769,21 @@ Status DirectSession::Run(const RunOptions& run_options,
     collective_graph_key_ = executors_and_keys->collective_graph_key;
   }
 
+  auto t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_1 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+
+
   // Configure a call frame for the step, which we use to feed and
   // fetch values to and from the executors.
+  // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() callFrame" << std::endl;
+
+
+  t_start = std::chrono::high_resolution_clock::now();  
+
+
   FunctionCallFrame call_frame(executors_and_keys->input_types,
                                executors_and_keys->output_types);
+  // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() callFrame complete" << std::endl;                               
   gtl::InlinedVector<Tensor, 4> feed_args(inputs.size());
   for (const auto& it : inputs) {
     if (it.second.dtype() == DT_RESOURCE) {
@@ -749,22 +796,42 @@ Status DirectSession::Run(const RunOptions& run_options,
       feed_args[executors_and_keys->input_name_to_index[it.first]] = it.second;
     }
   }
+
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_frameloop = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();  
+
+  // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() finished inputs loop" << std::endl;                               
+
   const Status s = call_frame.SetArgs(feed_args);
   if (errors::IsInternal(s)) {
     return errors::InvalidArgument(s.error_message());
   } else if (!s.ok()) {
     return s;
   }
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_callframe = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();  
 
+  // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() callFrame complete" << std::endl;                               
   const int64 step_id = step_id_counter_.fetch_add(1);
 
   if (LogMemory::IsEnabled()) {
     LogMemory::RecordStep(step_id, run_state_args.handle);
   }
 
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_fetch_add = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();  
+
+  // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() runInternal start" << std::endl;
+
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
                                  executors_and_keys, run_metadata));
-
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_runinternal = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();  
+  // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() runInternal complete" << std::endl;
   // Receive outputs.
   if (outputs) {
     std::vector<Tensor> sorted_outputs;
@@ -808,6 +875,15 @@ Status DirectSession::Run(const RunOptions& run_options,
     metrics::RecordGraphOutputTensors(output_size);
   }
 
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_outputs = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+
+
+  double elapse1 = elapsed_time_ms_1 + elapsed_time_ms_frameloop + elapsed_time_ms_callframe + elapsed_time_ms_fetch_add;
+  double totaltime = elapse1 + elapsed_time_ms_runinternal + elapsed_time_ms_outputs;
+
+  if(doProfile && totaltime > 250) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() COMPLETE initial=" << 
+      elapse1 << " rint=" << elapsed_time_ms_runinternal << " output=" << elapsed_time_ms_outputs << std::endl;
   return Status::OK();
 }
 
