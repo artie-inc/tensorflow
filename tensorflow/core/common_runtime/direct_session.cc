@@ -500,11 +500,34 @@ Status DirectSession::DecorateAndPublishGraphForDebug(
   return Status::OK();
 }
 
-Status DirectSession::RunInternal(
-    int64 step_id, const RunOptions& run_options,
-    CallFrameInterface* call_frame, ExecutorsAndKeys* executors_and_keys,
-    RunMetadata* run_metadata,
-    const thread::ThreadPoolOptions& threadpool_options) {
+Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
+                                  CallFrameInterface* call_frame,
+                                  ExecutorsAndKeys* executors_and_keys,
+                                  RunMetadata* run_metadata,
+                                  const thread::ThreadPoolOptions& threadpool_options) {
+  return RunInternal(step_id, run_options, call_frame, executors_and_keys, run_metadata, threadpool_options, false);
+}
+
+
+
+uint64_t timeSinceEpochMillisec() {
+  using namespace std::chrono;
+  return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+}
+
+// tensorflow/core/common_runtime/direct_session.cc:459:88: error: no matching function for call to 'tensorflow::DirectSession::RunInternal(tensorflow::int64&, const tensorflow::RunOptions&, tensorflow::CallFrameInterface*&, tensorflow::DirectSession::ExecutorsAndKeys*&, tensorflow::RunMetadata*&, bool)'
+//    RunInternal(step_id, run_options, call_frame, executors_and_keys, run_metadata, false);
+
+
+Status DirectSession::RunInternal(int64 step_id, const RunOptions& run_options,
+                                  CallFrameInterface* call_frame,
+                                  ExecutorsAndKeys* executors_and_keys,
+                                  RunMetadata* run_metadata, 
+                                  const thread::ThreadPoolOptions& threadpool_options, 
+                                  bool doProfile) {
+
+  auto t_start = std::chrono::high_resolution_clock::now();
+
   const uint64 start_time_usecs = options_.env->NowMicros();
   const int64 executor_step_count = executors_and_keys->step_count.fetch_add(1);
   RunState run_state(step_id, &devices_);
@@ -563,6 +586,11 @@ Status DirectSession::RunInternal(
         collective_executor_mgr_->FindOrCreate(step_id), true /*inherit_ref*/));
   }
 #endif
+  auto t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_1 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+
+
+  t_start = std::chrono::high_resolution_clock::now();
 
   // Start parallel Executors.
   const size_t num_executors = executors_and_keys->items.size();
@@ -617,6 +645,10 @@ Status DirectSession::RunInternal(
     profiler_session = ProfilerSession::Create();
   }
 
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_2 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
   if (run_options.inter_op_thread_pool() < -1 ||
       run_options.inter_op_thread_pool() >=
           static_cast<int32>(thread_pools_.size())) {
@@ -657,6 +689,10 @@ Status DirectSession::RunInternal(
     pool = thread_pools_[run_options.inter_op_thread_pool()].first;
   }
 
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_3 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
   if (pool == nullptr) {
     // We allow using the caller thread only when having a single executor
     // specified.
@@ -689,6 +725,11 @@ Status DirectSession::RunInternal(
     };
   }
 
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_4 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
+
   for (const auto& item : executors_and_keys->items) {
     // TODO(azaks): support partial run.
     // TODO(azaks): if the device picks its own threadpool, we need to assign
@@ -711,10 +752,20 @@ Status DirectSession::RunInternal(
     item.executor->RunAsync(args, barrier->Get());
   }
 
+
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_5 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
+
   WaitForNotification(&run_state, &step_cancellation_manager,
                       run_options.timeout_in_ms() > 0
                           ? run_options.timeout_in_ms()
                           : operation_timeout_in_ms_);
+
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_6 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
 
   if (!cancellation_manager_->DeregisterCallback(cancellation_token)) {
     // The step has been cancelled: make sure we don't attempt to receive the
@@ -732,6 +783,10 @@ Status DirectSession::RunInternal(
     TF_RETURN_IF_ERROR(run_state.status);
   }
 
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_7 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
   // Save the output tensors of this run we choose to keep.
   if (!run_state.tensor_store.empty()) {
     TF_RETURN_IF_ERROR(run_state.tensor_store.SaveTensors(
@@ -743,6 +798,10 @@ Status DirectSession::RunInternal(
   if (run_state.collector) {
     run_state.collector->Finalize();
   }
+
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_8 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
 
   // Build and return the cost model as instructed.
   if (update_cost_model) {
@@ -766,6 +825,10 @@ Status DirectSession::RunInternal(
     }
   }
 
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_9 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
   // If requested via RunOptions, output the partition graphs.
   if (run_options.output_partition_graphs()) {
     protobuf::RepeatedPtrField<GraphDef>* partition_graph_defs =
@@ -778,12 +841,19 @@ Status DirectSession::RunInternal(
   }
   metrics::UpdateGraphExecTime(options_.env->NowMicros() - start_time_usecs);
 
-  return Status::OK();
-}
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_10 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  // t_start = std::chrono::high_resolution_clock::now();
 
-uint64_t timeSinceEpochMillisec() {
-  using namespace std::chrono;
-  return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+  double total_time = elapsed_time_ms_1 + elapsed_time_ms_2 + elapsed_time_ms_3 + elapsed_time_ms_4 + elapsed_time_ms_5 
+  + elapsed_time_ms_5 + elapsed_time_ms_6 + elapsed_time_ms_7 + elapsed_time_ms_8 + elapsed_time_ms_9 + elapsed_time_ms_10;
+
+  if(doProfile && total_time > 250) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::RunInternal() complete one:" 
+  << elapsed_time_ms_1 << " two:" << elapsed_time_ms_2 << " three:" << elapsed_time_ms_3 << " four:" << elapsed_time_ms_4 << 
+  " five:" << elapsed_time_ms_5 << " six:" << elapsed_time_ms_6 << " seven:" << elapsed_time_ms_7 << " eight:" << elapsed_time_ms_8 
+  << " nine:" << elapsed_time_ms_9 << " ten:" << elapsed_time_ms_10 << std::endl;
+
+  return Status::OK();
 }
 
 Status DirectSession::Run(const RunOptions& run_options,
@@ -804,13 +874,29 @@ Status DirectSession::Run(const RunOptions& run_options,
                           RunMetadata* run_metadata
                           ,bool doProfile
                           ) {
+  if(doProfile) {
+    std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() START " << std::endl;
+  }
+  auto t_start = std::chrono::high_resolution_clock::now();
+  auto t_full_start = t_start;
+
   TF_RETURN_IF_ERROR(CheckNotClosed());
+
+  auto t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_notclosed = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
   TF_RETURN_IF_ERROR(CheckGraphCreated("Run()"));
 
-  auto t_start = std::chrono::high_resolution_clock::now();
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_graphcreated = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
 
   // bool doProfile = true;
   // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() start" << std::endl;
+
+
 
   direct_session_runs->GetCell()->IncrementBy(1);
 
@@ -822,6 +908,11 @@ Status DirectSession::Run(const RunOptions& run_options,
     input_tensor_names.push_back(it.first);
     input_size += it.second.AllocatedBytes();
   }
+
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_extractinput = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
   metrics::RecordGraphInputTensors(input_size);
 
   // Check if we already have an executor for these arguments.
@@ -830,16 +921,25 @@ Status DirectSession::Run(const RunOptions& run_options,
   run_state_args.collective_graph_key =
       run_options.experimental().collective_graph_key();
 
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_rec = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
+
+
   TF_RETURN_IF_ERROR(GetOrCreateExecutors(input_tensor_names, output_names,
                                           target_nodes, &executors_and_keys,
                                           &run_state_args));
+
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_executors = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_start = std::chrono::high_resolution_clock::now();
   {
     mutex_lock l(collective_graph_key_lock_);
     collective_graph_key_ = executors_and_keys->collective_graph_key;
   }
 
-  auto t_end = std::chrono::high_resolution_clock::now();
-  double elapsed_time_ms_1 = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
+  t_end = std::chrono::high_resolution_clock::now();
+  double elapsed_time_ms_mutex = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
 
 
   // Configure a call frame for the step, which we use to feed and
@@ -896,10 +996,8 @@ Status DirectSession::Run(const RunOptions& run_options,
   // if(doProfile) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() runInternal start" << std::endl;
 
   TF_RETURN_IF_ERROR(RunInternal(step_id, run_options, &call_frame,
-                                 executors_and_keys, run_metadata,
-                                 thread::ThreadPoolOptions()));
-
-                                 executors_and_keys, run_metadata));
+                                 executors_and_keys, run_metadata, 
+                                 thread::ThreadPoolOptions(), doProfile));
   t_end = std::chrono::high_resolution_clock::now();
   double elapsed_time_ms_runinternal = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
   t_start = std::chrono::high_resolution_clock::now();  
@@ -951,11 +1049,25 @@ Status DirectSession::Run(const RunOptions& run_options,
   double elapsed_time_ms_outputs = std::chrono::duration<double,  std::milli>(t_end-t_start).count();
 
 
-  double elapse1 = elapsed_time_ms_1 + elapsed_time_ms_frameloop + elapsed_time_ms_callframe + elapsed_time_ms_fetch_add;
+  double elapse1 = elapsed_time_ms_notclosed +  elapsed_time_ms_graphcreated + elapsed_time_ms_executors + elapsed_time_ms_extractinput + elapsed_time_ms_mutex + elapsed_time_ms_rec + elapsed_time_ms_frameloop + elapsed_time_ms_callframe + elapsed_time_ms_fetch_add ;
   double totaltime = elapse1 + elapsed_time_ms_runinternal + elapsed_time_ms_outputs;
 
-  if(doProfile && totaltime > 250) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() COMPLETE initial=" << 
-      elapse1 << " rint=" << elapsed_time_ms_runinternal << " output=" << elapsed_time_ms_outputs << std::endl;
+  auto t_full_end = t_end;
+  double full_time = std::chrono::duration<double,  std::milli>(t_full_end-t_full_start).count();
+
+  if(doProfile && totaltime > 0) std::cout << timeSinceEpochMillisec() << " " << std::this_thread::get_id() << " DirectSession::Run() COMPLETE chknotclosed=" << 
+      elapsed_time_ms_notclosed
+      << " graphcreated=" << elapsed_time_ms_graphcreated
+      << " executors=" << elapsed_time_ms_executors
+      << " mutex=" << elapsed_time_ms_mutex 
+      << " extract=" << elapsed_time_ms_extractinput
+      << " rec=" << elapsed_time_ms_rec
+      << " frameLoop=" << elapsed_time_ms_frameloop
+      << " callframe=" << elapsed_time_ms_callframe
+      << " elapsed_time_ms_fetch_add" << elapsed_time_ms_fetch_add
+      << " rint=" << elapsed_time_ms_runinternal 
+      << " output=" << elapsed_time_ms_outputs 
+      << " full=" << full_time << std::endl;
   return Status::OK();
 }
 
