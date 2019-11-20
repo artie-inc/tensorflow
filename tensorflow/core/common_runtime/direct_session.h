@@ -260,6 +260,11 @@ class DirectSession : public Session {
   ::tensorflow::Status RunInternal(int64 step_id, const RunOptions& run_options,
                                    CallFrameInterface* call_frame,
                                    ExecutorsAndKeys* executors_and_keys,
+                                   RunMetadata* run_metadata, bool doProfile);
+
+  ::tensorflow::Status RunInternal(int64 step_id, const RunOptions& run_options,
+                                   CallFrameInterface* call_frame,
+                                   ExecutorsAndKeys* executors_and_keys,
                                    RunMetadata* run_metadata);
 
   // Returns whether inter-op execution uses a global pool or the input
